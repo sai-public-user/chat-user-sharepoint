@@ -5,7 +5,7 @@
 
 ## Project Execution Blueprint & Presentation Document
 
-**Version 3.0 — Final Executive & Engineering Blueprint**
+**Final Executive & Engineering Blueprint**
 
 ---
 
