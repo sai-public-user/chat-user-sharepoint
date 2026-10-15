@@ -1,0 +1,60 @@
+graph TD
+    %% Define Styles
+    classDef userFill fill:#e0f7fa,stroke:#006064,stroke-width:2px,color:#000
+    classDef azureFill fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    classDef dbFill fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
+    classDef appFill fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
+    classDef aiFill fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000
+
+    %% Actors and UI
+    User(("Architect / User")):::userFill
+    ChatUI["Next.js UI (Chatbot)"]:::appFill
+
+    %% Data Sources
+    SharePoint[("SharePoint Online<br>(EA Documents)")]:::dbFill
+
+    %% Azure Ingestion Pipeline (Background)
+    subgraph Azure Ingestion & Indexing Pipeline
+        Indexer["Azure AI Search Indexer<br>(Scheduled Delta Sync)"]:::azureFill
+        Skillset["Azure Skillset<br>(Text Cracking & Chunking)"]:::azureFill
+        EmbedModel["Azure OpenAI<br>(text-embedding-3-small)"]:::aiFill
+        VectorIndex[("Azure AI Search Index<br>(Vectors + Metadata)")]:::dbFill
+    end
+
+    %% Metadata Ledger
+    CosmosDB[("Azure Cosmos DB<br>(Lifecycle Metadata Ledger)")]:::dbFill
+
+    %% Application API & Orchestration
+    NestJS["NestJS API (Backend)"]:::appFill
+
+    %% External AI Models
+    Claude["Azure AI Foundry<br>(Claude 3.5 Sonnet)"]:::aiFill
+    GPT["Azure OpenAI<br>(GPT-4o)"]:::aiFill
+
+    %% Flow: Background Ingestion
+    SharePoint -- "1. Reads Docs via Graph API" --> Indexer
+    Indexer -- "2. Sends text to" --> Skillset
+    Skillset -- "3. Requests vector embeddings" --> EmbedModel
+    EmbedModel -- "4. Returns vectors" --> Skillset
+    Skillset -- "5. Stores chunks + vectors" --> VectorIndex
+
+    %% Flow: Metadata Sync
+    CosmosDB -- "6. Syncs 'APPROVED' status" --> VectorIndex
+
+    %% Flow: User Query
+    User -- "7. Asks question" --> ChatUI
+    ChatUI -- "8. Sends query + Entra ID token" --> NestJS
+    NestJS -- "9. Embeds query" --> EmbedModel
+    EmbedModel -. "Returns query vector" .-> NestJS
+    NestJS -- "10. Hybrid Search (Metadata Filter: APPROVED)" --> VectorIndex
+    VectorIndex -- "11. Returns top relevant chunks" --> NestJS
+
+    %% Flow: Generation
+    NestJS -- "12. Sends chunks + prompt" --> Claude
+    NestJS -. "OR Sends chunks + prompt" .-> GPT
+    Claude -- "13. Generates cited answer" --> NestJS
+    GPT -. "13. Generates cited answer" .-> NestJS
+
+    %% Flow: Response
+    NestJS -- "14. Streams response" --> ChatUI
+    ChatUI -- "15. Displays answer + citations" --> User
